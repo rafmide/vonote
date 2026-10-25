@@ -1,0 +1,1445 @@
+<!doctype html>
+<html lang="en" class="pre">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>vonote: voice notes that stay with you</title>
+  <meta name="description" content="Record voice notes in your browser and replay them whenever you want. Everything stays on your device. No account, no upload.">
+  <meta name="theme-color" content="#ffffff">
+  <meta name="color-scheme" content="light">
+  <meta name="robots" content="index,follow">
+  <link rel="canonical" href="https://vonote.vercel.app/">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%23111'/%3E%3Crect x='8' y='12' width='3' height='8' rx='1.5' fill='%23fff'/%3E%3Crect x='14.5' y='7' width='3' height='18' rx='1.5' fill='%23fff'/%3E%3Crect x='21' y='11' width='3' height='10' rx='1.5' fill='%23fff'/%3E%3C/svg%3E">
+
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="vonote">
+  <meta property="og:url" content="https://vonote.vercel.app/">
+  <meta property="og:title" content="vonote: voice notes that stay with you">
+  <meta property="og:description" content="Say it once. Hear it anytime. Record voice notes in your browser and keep them on your device.">
+  <meta property="og:image" content="https://vonote.vercel.app/og.png">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="vonote: Say it once. Hear it anytime. A recorder card with a live waveform and a saved voice note.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="vonote: voice notes that stay with you">
+  <meta name="twitter:description" content="Say it once. Hear it anytime. Record voice notes in your browser and keep them on your device.">
+  <meta name="twitter:image" content="https://vonote.vercel.app/og.png">
+  <meta name="twitter:image:alt" content="vonote: Say it once. Hear it anytime. A recorder card with a live waveform and a saved voice note.">
+
+  <script type="application/ld+json">
+  {"@context":"https://schema.org","@type":"WebApplication","name":"vonote","url":"https://vonote.vercel.app/","applicationCategory":"UtilitiesApplication","operatingSystem":"Any","description":"Record voice notes in the browser and replay them later. Notes are stored on the device.","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}}
+  </script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400..700;1,14..32,400..700&display=swap" rel="stylesheet">
+
+  <!-- Hide the page until Tailwind has generated its stylesheet, so there is no unstyled flash. -->
+  <style>html.pre body{opacity:0}</style>
+
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.3/dist/index.global.js" integrity="sha384-2ql948lIdLcGEE0/qxNiudyTjgauA3RDJERu5xW75kFCvSl5a9odyQYCb6tEjnmB" crossorigin="anonymous"></script>
+
+  <style type="text/tailwindcss">
+    @theme {
+      --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      --color-ink: #111111;
+      --color-surface: #f7f7f7;
+      --color-surface-hover: #efefef;
+      --color-line: #dcdcdc;
+      --color-line-soft: #ebebeb;
+      --color-muted: #666666;
+      --color-brand: #1063e9;
+      --color-brand-hover: #074ab5;
+      --color-brand-pressed: #0d53c3;
+      --color-danger: #e5484d;
+      --color-danger-surface: #ff224426;
+      --ease-out-strong: cubic-bezier(0.23, 1, 0.32, 1);
+    }
+    /* In the Tailwind layer system so utilities like outline-none can still override it. */
+    @layer base {
+      :focus-visible { outline: 2px solid #1063e9; outline-offset: 2px; }
+    }
+  </style>
+
+  <style>
+    :root { --ease: cubic-bezier(0.23, 1, 0.32, 1); }
+    html { -webkit-text-size-adjust: 100%; scrollbar-gutter: stable; }
+    body { font-optical-sizing: auto; text-rendering: optimizeLegibility; -webkit-tap-highlight-color: transparent; }
+    button, a, input, [role="slider"] { touch-action: manipulation; }
+    ::selection { background: #1063e933; }
+    section[id] { scroll-margin-top: 5.5rem; }
+
+    /* Live waveform fades out to the left, like a tape running past. */
+    #live {
+      -webkit-mask-image: linear-gradient(to right, transparent 0, #000 16%, #000 100%);
+              mask-image: linear-gradient(to right, transparent 0, #000 16%, #000 100%);
+    }
+
+    /* Tab indicator */
+    #tab-ind { transition: transform 340ms var(--ease), width 340ms var(--ease); }
+    #tab-ind.no-anim { transition: none; }
+
+    /* Two faces that cross-fade inside one grid cell. Interruptible CSS, not keyframes. */
+    .face { transition: opacity 180ms var(--ease), transform 180ms var(--ease), filter 180ms var(--ease); }
+    [data-state="off"] > .face-on,
+    [data-state="on"] > .face-off { opacity: 0; transform: scale(0.72); filter: blur(3px); pointer-events: none; }
+
+    /* Status dot */
+    #dot { transition: background-color 200ms var(--ease); }
+    #recorder[data-phase="recording"] #dot { background: #e5484d; animation: dot-pulse 1.6s ease-in-out infinite; }
+    #recorder[data-phase="paused"] #dot,
+    #recorder[data-phase="requesting"] #dot,
+    #recorder[data-phase="saving"] #dot { background: #999; }
+    @keyframes dot-pulse { 50% { opacity: 0.35; } }
+
+    /* Discard and pause slide out from behind the record button. */
+    .side {
+      width: 0; margin: 0; opacity: 0; transform: scale(0.7); overflow: hidden; flex: none;
+      transition: width 320ms var(--ease), margin 320ms var(--ease), opacity 200ms var(--ease), transform 320ms var(--ease);
+    }
+    #recorder[data-phase="recording"] .side,
+    #recorder[data-phase="paused"] .side { width: 48px; opacity: 1; transform: none; }
+    #recorder[data-phase="recording"] .side-l,
+    #recorder[data-phase="paused"] .side-l { margin-right: 12px; }
+    #recorder[data-phase="recording"] .side-r,
+    #recorder[data-phase="paused"] .side-r { margin-left: 12px; }
+
+    .note { transition: background-color 240ms var(--ease), border-color 240ms var(--ease); }
+    .note[data-playing="true"] { background: #f7f7f7; border-color: #dcdcdc; }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; scroll-behavior: auto !important; }
+    }
+  </style>
+</head>
+
+<body class="bg-white font-sans text-ink antialiased">
+  <a href="#record" class="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-full focus:bg-ink focus:px-4 focus:py-2 focus:text-white">Skip to content</a>
+
+  <header id="nav" class="fixed inset-x-0 top-0 z-30 bg-white/80 backdrop-blur-md">
+    <div class="mx-auto flex h-16 max-w-5xl items-center justify-between px-4 sm:px-6">
+      <a href="#record" class="flex items-center gap-2.5 rounded-xl" aria-label="vonote, back to the recorder">
+        <svg viewBox="0 0 32 32" class="size-8" aria-hidden="true">
+          <rect width="32" height="32" rx="9" fill="#111"/>
+          <rect x="8" y="12" width="3" height="8" rx="1.5" fill="#fff"/>
+          <rect x="14.5" y="7" width="3" height="18" rx="1.5" fill="#fff"/>
+          <rect x="21" y="11" width="3" height="10" rx="1.5" fill="#fff"/>
+        </svg>
+        <span class="text-[17px] font-semibold tracking-[-0.03em]">vonote</span>
+      </a>
+
+      <nav id="tabs" aria-label="Sections" class="relative flex items-center gap-1 rounded-full bg-surface p-1">
+        <span id="tab-ind" aria-hidden="true" class="absolute left-0 top-1 h-10 w-0 rounded-full bg-ink will-change-transform no-anim"></span>
+        <a id="tab-record" href="#record" aria-current="location"
+          class="relative z-10 flex h-10 items-center gap-2 rounded-full px-3.5 text-sm font-medium text-white transition-colors duration-200 ease-out-strong sm:px-4">
+          <i data-lucide="mic" class="size-[18px]" aria-hidden="true"></i><span class="hidden sm:inline">Record</span><span class="sr-only sm:hidden">Record</span>
+        </a>
+        <a id="tab-notes" href="#notes"
+          class="relative z-10 flex h-10 items-center gap-2 rounded-full px-3.5 text-sm font-medium text-ink transition-colors duration-200 ease-out-strong sm:px-4">
+          <i data-lucide="audio-lines" class="size-[18px]" aria-hidden="true"></i><span class="hidden sm:inline">Notes</span><span class="sr-only sm:hidden">Notes</span>
+        </a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="mx-auto max-w-5xl px-4 pb-[max(4rem,env(safe-area-inset-bottom))] pt-28 sm:px-6 sm:pt-32">
+
+    <!-- Recorder -->
+    <section id="record" aria-label="Recorder">
+      <h1 class="text-center text-[clamp(2.9rem,13vw,6rem)] font-semibold leading-[0.98] tracking-[-0.045em] text-balance">
+        <span class="block overflow-hidden pb-[0.1em]"><span class="line-in block">Say it once.</span></span>
+        <span class="block overflow-hidden pb-[0.1em]"><span class="line-in block">Hear it <em class="pr-[0.08em] font-medium italic">anytime.</em></span></span>
+      </h1>
+      <p id="hero-sub" class="mx-auto mt-5 max-w-[34ch] text-center text-[17px] leading-relaxed text-muted sm:text-lg">
+        Record voice notes right in your browser. They stay on your device, ready to replay whenever you want.
+      </p>
+
+      <div id="recorder" data-phase="idle" class="mx-auto mt-9 max-w-[720px] rounded-[32px] bg-surface p-2 sm:mt-11 sm:p-3">
+        <div class="rounded-[26px] border border-line-soft bg-white px-4 pb-6 pt-4 sm:px-6 sm:pt-5">
+          <div class="flex items-center justify-between gap-3 text-sm text-muted">
+            <span class="flex items-center gap-2">
+              <span id="dot" class="size-2 rounded-full bg-line" aria-hidden="true"></span>
+              <span id="status" role="status" aria-live="polite">Ready</span>
+            </span>
+            <span id="limit">Up to 60 minutes</span>
+          </div>
+
+          <div id="notice" hidden class="mt-4 flex items-start gap-3 rounded-2xl p-3.5" role="alert"></div>
+
+          <div id="clock" role="timer" aria-live="off" class="mt-6 text-center text-[clamp(3.5rem,17vw,5.25rem)] font-semibold leading-none tracking-[-0.045em] tabular-nums">0:00</div>
+          <canvas id="live" class="mt-6 block h-24 w-full" aria-hidden="true"></canvas>
+        </div>
+
+        <div class="flex items-center justify-center px-1 pb-1 pt-4 sm:pb-2">
+          <button id="discard" type="button" disabled aria-label="Discard recording"
+            class="side side-l grid size-12 place-items-center rounded-full bg-white text-ink transition-[background-color] hover:bg-white/70">
+            <i data-lucide="trash-2" class="size-[18px]" aria-hidden="true"></i>
+          </button>
+
+          <button id="rec" type="button" data-state="off" aria-label="Start recording"
+            class="inline-grid h-14 min-w-0 flex-1 place-items-center rounded-full bg-brand px-6 text-[17px] font-semibold text-white transition-[background-color,transform] duration-200 ease-out-strong hover:bg-brand-hover active:scale-[0.97] active:bg-brand-pressed data-[state=on]:bg-ink data-[state=on]:hover:bg-black disabled:cursor-not-allowed disabled:bg-line disabled:text-muted disabled:active:scale-100 sm:w-[224px] sm:flex-none">
+            <span class="face face-off flex items-center gap-2.5 [grid-area:1/1]"><i data-lucide="mic" class="size-5" aria-hidden="true"></i>Record</span>
+            <span class="face face-on flex items-center gap-2.5 [grid-area:1/1]" aria-hidden="true"><i data-lucide="square" class="size-4 fill-current" aria-hidden="true"></i>Stop and save</span>
+          </button>
+
+          <button id="pause" type="button" disabled data-state="off" aria-label="Pause recording"
+            class="side side-r inline-grid size-12 place-items-center rounded-full bg-white text-ink transition-[background-color] hover:bg-white/70">
+            <i data-lucide="pause" class="face face-off size-[18px] fill-current [grid-area:1/1]" aria-hidden="true"></i>
+            <i data-lucide="play" class="face face-on size-[18px] fill-current [grid-area:1/1]" aria-hidden="true"></i>
+          </button>
+        </div>
+      </div>
+
+      <p id="privacy" class="mx-auto mt-6 max-w-[48ch] text-center text-[13px] leading-relaxed text-muted">
+        Nothing is uploaded. Recordings live in this browser, so clearing site data deletes them. Download anything you cannot lose.
+      </p>
+    </section>
+
+    <!-- Notes -->
+    <section id="notes" aria-labelledby="notes-title" class="mx-auto mt-24 min-h-[70dvh] max-w-[720px] sm:mt-32">
+      <div class="flex items-end justify-between gap-4">
+        <h2 id="notes-title" class="text-[clamp(1.75rem,6vw,2.5rem)] font-semibold leading-none tracking-[-0.035em]">Your notes</h2>
+        <p id="notes-meta" class="pb-0.5 text-sm tabular-nums text-muted"></p>
+      </div>
+      <ul id="notes-list" class="mt-6 flex flex-col gap-3" aria-label="Saved voice notes"></ul>
+      <div id="notes-empty" hidden class="mt-6 rounded-[28px] bg-surface px-6 py-14 text-center">
+        <div class="mx-auto grid size-12 place-items-center rounded-full bg-white"><i data-lucide="audio-lines" class="size-5" aria-hidden="true"></i></div>
+        <p class="mt-4 text-lg font-semibold tracking-tight">No notes yet</p>
+        <p class="mx-auto mt-1 max-w-[30ch] text-muted">Press Record and say something. It shows up here the moment you stop.</p>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast-region" aria-live="polite" class="pointer-events-none fixed inset-x-0 bottom-[max(1rem,env(safe-area-inset-bottom))] z-50 flex justify-center px-4"></div>
+
+  <noscript><p style="position:fixed;inset:auto 0 0 0;padding:16px;background:#111;color:#fff;text-align:center">vonote needs JavaScript to record and play voice notes.</p></noscript>
+
+  <script src="https://cdn.jsdelivr.net/npm/animejs@4.5.0/dist/bundles/anime.umd.min.js" integrity="sha384-InMmvD3VoYcY7hGjSC80aLb2bNNE4CzpX+Eq6FVDlmB0IKgDvmfPw4UY8L/M++iG" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lucide@1.50.0/dist/umd/lucide.min.js" integrity="sha384-/sIySnlbVLfPSNdgy7yqanP6+Dv4en7FlBure4Rag0mp480bA2f+nTviC6933zkQ" crossorigin="anonymous"></script>
+
+  <script>
+  (() => {
+    'use strict';
+
+    /* ------------------------------------------------------------------ *
+     * Helpers
+     * ------------------------------------------------------------------ */
+    const $ = (sel, root = document) => root.querySelector(sel);
+    const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+    const reduceMQ = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const A = window.anime || null;
+    const canAnimate = !!A;
+    const EASE = A ? { out: A.cubicBezier(0.23, 1, 0.32, 1) } : {};
+
+    /** Safe DOM builder. User text only ever goes through textContent. */
+    function h(tag, props, ...kids) {
+      const el = document.createElement(tag);
+      for (const [k, v] of Object.entries(props || {})) {
+        if (v == null || v === false) continue;
+        if (k === 'class') el.className = v;
+        else if (k.startsWith('on') && typeof v === 'function') el.addEventListener(k.slice(2), v);
+        else el.setAttribute(k, v === true ? '' : String(v));
+      }
+      for (const kid of kids.flat()) if (kid != null && kid !== false) el.append(kid);
+      return el;
+    }
+
+    const icons = () => { if (window.lucide) window.lucide.createIcons(); };
+
+    const STYLE_PROPS = ['opacity', 'transform', 'filter', 'height', 'margin-top', 'margin-bottom', 'overflow'];
+    function clearStyles(els, props = STYLE_PROPS) {
+      for (const el of [].concat(els)) if (el) for (const p of props) el.style.removeProperty(p);
+    }
+
+    /** Promise-returning animation. Resolves immediately when Anime.js is unavailable. */
+    function tween(targets, params) {
+      if (!canAnimate) return Promise.resolve();
+      return new Promise((resolve) => {
+        const p = reduceMQ.matches ? { ...params, duration: 1, delay: 0 } : params;
+        A.animate(targets, { ...p, onComplete: () => resolve() });
+      });
+    }
+    const hide = (el) => { if (canAnimate && !reduceMQ.matches) el.style.opacity = '0'; };
+
+    const pad = (n) => String(n).padStart(2, '0');
+    const uid = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`);
+    const clamp01 = (n) => Math.min(1, Math.max(0, n));
+
+    function fmtClock(ms) {
+      const s = Math.max(0, Math.floor(ms / 1000));
+      const hrs = Math.floor(s / 3600);
+      const m = Math.floor((s % 3600) / 60);
+      return hrs ? `${hrs}:${pad(m)}:${pad(s % 60)}` : `${m}:${pad(s % 60)}`;
+    }
+    function fmtBytes(b) {
+      if (b < 1024 * 1024) return `${Math.max(1, Math.round(b / 1024))} KB`;
+      return `${(b / 1024 / 1024).toFixed(b < 10 * 1024 * 1024 ? 1 : 0)} MB`;
+    }
+    function formatWhen(ts) {
+      const d = new Date(ts);
+      const day = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+      const diff = Math.round((day(new Date()) - day(d)) / 864e5);
+      const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+      if (diff === 0) return `Today, ${time}`;
+      if (diff === 1) return `Yesterday, ${time}`;
+      return `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })}, ${time}`;
+    }
+    const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+
+    /** Reduce raw level samples to n bars (max per bucket), scaled so the loudest bar is full height. */
+    function summarizePeaks(raw, n) {
+      if (!raw.length) return new Array(n).fill(0.06);
+      const out = [];
+      for (let i = 0; i < n; i++) {
+        const a = Math.floor((i * raw.length) / n);
+        const b = Math.max(a + 1, Math.floor(((i + 1) * raw.length) / n));
+        let m = 0;
+        for (let j = a; j < b && j < raw.length; j++) if (raw[j] > m) m = raw[j];
+        out.push(m);
+      }
+      const top = Math.max(0.2, ...out);
+      return out.map((v) => Math.round(Math.max(0.06, Math.min(1, v / top)) * 100) / 100);
+    }
+
+    /* ------------------------------------------------------------------ *
+     * Storage: raw IndexedDB behind a small promise wrapper.
+     *   notes    metadata only (small, listed on load)
+     *   audio    the recorded Blob, fetched only when played or exported
+     *   drafts   one row per in-progress recording
+     *   chunks   append-only 1s audio pieces, so a crash does not lose a recording
+     *   settings key/value
+     * ------------------------------------------------------------------ */
+    const store = (() => {
+      const DB_NAME = 'vonote';
+      const DB_VERSION = 2;
+      const NOTE_LIMIT = 1000;
+      const mem = { notes: new Map(), audio: new Map(), settings: new Map() };
+      let dbPromise = null;
+      let persistent = true;
+      let warned = false;
+
+      const isQuota = (e) => !!e && (e.name === 'QuotaExceededError' || e.code === 22);
+
+      function open() {
+        if (dbPromise) return dbPromise;
+        dbPromise = new Promise((resolve, reject) => {
+          if (!('indexedDB' in window)) return reject(new Error('IndexedDB unavailable'));
+          let req;
+          try { req = indexedDB.open(DB_NAME, DB_VERSION); } catch (e) { return reject(e); }
+          req.onupgradeneeded = () => {
+            const db = req.result;
+            if (db.objectStoreNames.contains('sessions')) db.deleteObjectStore('sessions'); // v1 held text transcripts
+            if (!db.objectStoreNames.contains('notes')) db.createObjectStore('notes', { keyPath: 'id' }).createIndex('createdAt', 'createdAt');
+            if (!db.objectStoreNames.contains('audio')) db.createObjectStore('audio', { keyPath: 'id' });
+            if (!db.objectStoreNames.contains('drafts')) db.createObjectStore('drafts', { keyPath: 'id' });
+            if (!db.objectStoreNames.contains('chunks')) db.createObjectStore('chunks', { keyPath: 'key' });
+            if (!db.objectStoreNames.contains('settings')) db.createObjectStore('settings', { keyPath: 'key' });
+          };
+          req.onsuccess = () => {
+            const db = req.result;
+            db.onversionchange = () => { db.close(); dbPromise = null; };
+            resolve(db);
+          };
+          req.onerror = () => reject(req.error);
+          req.onblocked = () => reject(new Error('IndexedDB blocked'));
+        });
+        return dbPromise;
+      }
+
+      function run(stores, mode, fn) {
+        return open().then((db) => new Promise((resolve, reject) => {
+          const t = db.transaction(stores, mode);
+          let out;
+          try { out = fn(t); } catch (e) { reject(e); return; }
+          t.oncomplete = () => resolve(out && 'result' in out ? out.result : out);
+          t.onerror = () => reject(t.error);
+          t.onabort = () => reject(t.error);
+        }));
+      }
+
+      function degrade(err) {
+        persistent = false;
+        console.warn('[vonote] storage unavailable, using memory only', err);
+        if (!warned) { warned = true; api.onDegrade && api.onDegrade(); }
+      }
+
+      const api = {
+        onDegrade: null,
+        get persistent() { return persistent; },
+
+        async listNotes() {
+          if (persistent) {
+            try {
+              return await new Promise((resolve, reject) => {
+                open().then((db) => {
+                  const rows = [];
+                  const req = db.transaction('notes').objectStore('notes').index('createdAt').openCursor(null, 'prev');
+                  req.onsuccess = () => {
+                    const cur = req.result;
+                    if (cur && rows.length < NOTE_LIMIT) { rows.push(cur.value); cur.continue(); } else resolve(rows);
+                  };
+                  req.onerror = () => reject(req.error);
+                }, reject);
+              });
+            } catch (e) { degrade(e); }
+          }
+          return [...mem.notes.values()].sort((a, b) => b.createdAt - a.createdAt);
+        },
+
+        /** Metadata and audio are written in one transaction, so there is never a note without its sound. */
+        async saveNote(note, blob) {
+          if (persistent) {
+            try {
+              await run(['notes', 'audio'], 'readwrite', (t) => { t.objectStore('notes').put(note); return t.objectStore('audio').put({ id: note.id, blob }); });
+              return;
+            } catch (e) { if (isQuota(e)) throw e; degrade(e); }
+          }
+          mem.notes.set(note.id, note);
+          mem.audio.set(note.id, blob);
+        },
+
+        async updateNote(note) {
+          if (persistent) {
+            try { await run('notes', 'readwrite', (t) => t.objectStore('notes').put(note)); return; } catch (e) { degrade(e); }
+          }
+          mem.notes.set(note.id, note);
+        },
+
+        async deleteNote(id) {
+          mem.notes.delete(id); mem.audio.delete(id);
+          if (!persistent) return;
+          try { await run(['notes', 'audio'], 'readwrite', (t) => { t.objectStore('notes').delete(id); return t.objectStore('audio').delete(id); }); } catch (e) { degrade(e); }
+        },
+
+        async getAudio(id) {
+          if (persistent) {
+            try { const row = await run('audio', 'readonly', (t) => t.objectStore('audio').get(id)); return row ? row.blob : undefined; } catch (e) { degrade(e); }
+          }
+          return mem.audio.get(id);
+        },
+
+        async putChunk(draftId, seq, blob) {
+          if (!persistent) return;
+          try { await run('chunks', 'readwrite', (t) => t.objectStore('chunks').put({ key: `${draftId}:${String(seq).padStart(6, '0')}`, blob })); } catch (e) { if (!isQuota(e)) degrade(e); }
+        },
+
+        async putDraft(draft) {
+          if (!persistent) return;
+          try { await run('drafts', 'readwrite', (t) => t.objectStore('drafts').put(draft)); } catch (e) { if (!isQuota(e)) degrade(e); }
+        },
+
+        async listDrafts() {
+          if (!persistent) return [];
+          try { return await run('drafts', 'readonly', (t) => t.objectStore('drafts').getAll()); } catch (e) { degrade(e); return []; }
+        },
+
+        async readChunks(draftId) {
+          if (!persistent) return [];
+          try {
+            return await new Promise((resolve, reject) => {
+              open().then((db) => {
+                const out = [];
+                const req = db.transaction('chunks').objectStore('chunks').openCursor(IDBKeyRange.bound(`${draftId}:`, `${draftId}:￿`));
+                req.onsuccess = () => { const c = req.result; if (c) { out.push(c.value.blob); c.continue(); } else resolve(out); };
+                req.onerror = () => reject(req.error);
+              }, reject);
+            });
+          } catch (e) { degrade(e); return []; }
+        },
+
+        async clearDraft(draftId) {
+          if (!persistent) return;
+          try {
+            await run(['chunks', 'drafts'], 'readwrite', (t) => {
+              t.objectStore('chunks').delete(IDBKeyRange.bound(`${draftId}:`, `${draftId}:￿`));
+              return t.objectStore('drafts').delete(draftId);
+            });
+          } catch (e) { degrade(e); }
+        },
+
+        async getSetting(key) {
+          if (persistent) {
+            try { const row = await run('settings', 'readonly', (t) => t.objectStore('settings').get(key)); return row ? row.value : undefined; } catch (e) { degrade(e); }
+          }
+          return mem.settings.get(key);
+        },
+
+        async setSetting(key, value) {
+          mem.settings.set(key, value);
+          if (!persistent) return;
+          try { await run('settings', 'readwrite', (t) => t.objectStore('settings').put({ key, value })); } catch (e) { degrade(e); }
+        },
+      };
+      return api;
+    })();
+
+    /* ------------------------------------------------------------------ *
+     * Toasts
+     * ------------------------------------------------------------------ */
+    const toasts = (() => {
+      const region = $('#toast-region');
+      let current = null;
+      let timer = 0;
+
+      function dismiss(immediate) {
+        clearTimeout(timer);
+        const el = current;
+        if (!el) return;
+        current = null;
+        if (immediate) { el.remove(); return; }
+        tween(el, { opacity: [1, 0], y: [0, 8], scale: [1, 0.98], duration: 160, ease: 'inQuad' }).then(() => el.remove());
+      }
+
+      function show(message, opts = {}) {
+        dismiss(true);
+        const el = h('div', { class: 'pointer-events-auto flex h-12 max-w-full items-center gap-4 rounded-full bg-ink pl-5 pr-2 text-sm font-medium text-white shadow-[0_12px_32px_-8px_rgb(0_0_0/0.35)]' },
+          h('span', { class: 'truncate' }, message),
+          opts.action ? h('button', {
+            type: 'button',
+            class: 'h-9 shrink-0 rounded-full bg-white/12 px-4 text-sm font-semibold text-white transition-[background-color,transform] duration-200 hover:bg-white/20 active:scale-[0.96]',
+            onclick: () => { dismiss(); opts.onAction && opts.onAction(); },
+          }, opts.action) : h('span', { class: 'w-3' }));
+        region.append(el);
+        current = el;
+        hide(el);
+        tween(el, { opacity: [0, 1], y: [14, 0], scale: [0.96, 1], duration: 260, ease: EASE.out }).then(() => clearStyles(el));
+        timer = setTimeout(() => dismiss(), opts.duration ?? (opts.action ? 6000 : 2400));
+        el.addEventListener('pointerenter', () => clearTimeout(timer));
+        el.addEventListener('pointerleave', () => { timer = setTimeout(() => dismiss(), 1800); });
+      }
+      return { show, dismiss };
+    })();
+
+    /* ------------------------------------------------------------------ *
+     * Waveform drawing (shared by live meter and saved notes)
+     * ------------------------------------------------------------------ */
+    const BAR = 3;
+    const GAP = 3;
+    const STEP = BAR + GAP;
+
+    function sizeCanvas(cv) {
+      const r = cv.getBoundingClientRect();
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      cv.width = Math.round(r.width * dpr);
+      cv.height = Math.round(r.height * dpr);
+      const ctx = cv.getContext('2d');
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      return { ctx, w: r.width, h: r.height };
+    }
+    function bar(ctx, x, mid, bh) {
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(x, mid - bh / 2, BAR, bh, BAR / 2); else ctx.rect(x, mid - bh / 2, BAR, bh);
+      ctx.fill();
+    }
+
+    /** Saved-note waveform: bars up to `progress` are ink, the rest are grey. */
+    function drawPeaks(dims, peaks, progress) {
+      const { ctx, w, h: hgt } = dims;
+      ctx.clearRect(0, 0, w, hgt);
+      if (!w) return;
+      const n = Math.max(8, Math.floor((w + GAP) / STEP));
+      const mid = hgt / 2;
+      const cut = progress * n;
+      const x0 = (w - (n * STEP - GAP)) / 2;
+      for (let i = 0; i < n; i++) {
+        const a = Math.floor((i * peaks.length) / n);
+        const b = Math.max(a + 1, Math.floor(((i + 1) * peaks.length) / n));
+        let m = 0;
+        for (let j = a; j < b && j < peaks.length; j++) if (peaks[j] > m) m = peaks[j];
+        ctx.fillStyle = i + 0.5 <= cut ? '#111111' : '#dcdcdc';
+        bar(ctx, x0 + i * STEP, mid, Math.max(BAR, m * hgt * 0.92));
+      }
+    }
+
+    /** Live meter: bars scroll right to left as the level changes, newest on the right. */
+    const live = (() => {
+      const cv = $('#live');
+      const PUSH_MS = 100;
+      let dims = { ctx: cv.getContext('2d'), w: 0, h: 0 };
+      let levels = [];
+      let lastPush = 0;
+      let running = false;
+      let active = false;
+      let raf = 0;
+      const intro = { v: 1 };
+
+      function resize() { dims = sizeCanvas(cv); draw(performance.now()); }
+
+      function draw(now) {
+        const { ctx, w, h: hgt } = dims;
+        ctx.clearRect(0, 0, w, hgt);
+        if (!w) return;
+        const n = Math.floor((w + GAP) / STEP);
+        const mid = hgt / 2;
+        const frac = active && !reduceMQ.matches ? Math.min(1, (now - lastPush) / PUSH_MS) : 0;
+        // Resting dots across the whole width, so the meter never looks empty.
+        ctx.fillStyle = '#dcdcdc';
+        for (let k = 0; k < n + 1; k++) {
+          const x = w - BAR - (k + frac) * STEP;
+          const d = Math.abs((x + BAR / 2) / w - 0.5) * 2;
+          if (intro.v < 1 && intro.v * 1.8 - d * 0.8 <= 0) continue;
+          bar(ctx, x, mid, BAR);
+        }
+        ctx.fillStyle = '#111111';
+        const last = levels.length - 1;
+        for (let k = 0; k <= last && k < n + 1; k++) {
+          const x = w - BAR - (k + frac) * STEP;
+          bar(ctx, x, mid, Math.max(BAR, levels[last - k] * hgt * 0.95));
+        }
+      }
+
+      function loop(now) {
+        draw(now);
+        raf = running || intro.v < 1 ? requestAnimationFrame(loop) : 0;
+      }
+      const kick = () => { if (!raf) raf = requestAnimationFrame(loop); };
+
+      new ResizeObserver(resize).observe(cv);
+
+      return {
+        start() { levels = []; active = true; running = true; lastPush = performance.now(); kick(); },
+        pause() { active = false; draw(performance.now()); },
+        resume() { active = true; lastPush = performance.now(); kick(); },
+        stop() { active = false; running = false; levels = []; draw(performance.now()); },
+        push(level) { levels.push(level); if (levels.length > 400) levels.splice(0, levels.length - 400); lastPush = performance.now(); },
+        playIntro(delay) {
+          if (!canAnimate || reduceMQ.matches) { intro.v = 1; draw(performance.now()); return; }
+          intro.v = 0; draw(performance.now());
+          A.animate(intro, { v: [0, 1], duration: 900, delay, ease: EASE.out });
+          kick();
+        },
+      };
+    })();
+
+    /* ------------------------------------------------------------------ *
+     * Recorder: getUserMedia + MediaRecorder + AnalyserNode
+     * ------------------------------------------------------------------ */
+    const MAX_MS = 60 * 60 * 1000;
+    const DRAFT_EVERY_CHUNKS = 5;
+    const LOCK_PREFIX = 'vonote-recording-';
+    const IS_WEBKIT = /iPhone|iPad|iPod/.test(navigator.userAgent) || (/AppleWebKit/.test(navigator.userAgent) && !/Chrome|Chromium|CriOS|FxiOS|Edg|OPR|Android/.test(navigator.userAgent));
+
+    function pickMime() {
+      if (!window.MediaRecorder || !MediaRecorder.isTypeSupported) return '';
+      // Safari 18.4+ claims WebM support but cannot play it back reliably, so WebKit prefers MP4.
+      const webm = ['audio/webm;codecs=opus', 'audio/ogg;codecs=opus', 'audio/webm'];
+      const mp4 = ['audio/mp4;codecs=mp4a.40.2', 'audio/mp4'];
+      const order = IS_WEBKIT ? [...mp4, ...webm] : [...webm, ...mp4];
+      return order.find((t) => MediaRecorder.isTypeSupported(t)) || '';
+    }
+
+    function mapMicError(e) {
+      switch (e && e.name) {
+        case 'NotAllowedError': case 'SecurityError': return 'permission';
+        case 'NotFoundError': case 'DevicesNotFoundError': return 'no-mic';
+        case 'NotReadableError': case 'TrackStartError': case 'AbortError': return 'busy';
+        default: return 'unknown';
+      }
+    }
+
+    function createRecorder(cb) {
+      let state = 'idle';
+      let stream = null;
+      let mr = null;
+      let ctx = null;
+      let analyser = null;
+      let bytes = null;
+      let chunks = [];
+      let raw = [];
+      let seq = 0;
+      let draftId = '';
+      let mime = '';
+      let startedAt = 0;
+      let activeMs = 0;
+      let tickAt = 0;
+      let sample = 0;
+      let carry = 0;
+      let timer = 0;
+      let discarding = false;
+      let limitHit = false;
+      let stopFallback = 0;
+      let releaseLock = null;
+
+      const setState = (s) => { state = s; cb.onState(s); };
+
+      function level() {
+        if (!analyser) return 0;
+        analyser.getByteTimeDomainData(bytes);
+        let sum = 0;
+        for (let i = 0; i < bytes.length; i++) { const v = (bytes[i] - 128) / 128; sum += v * v; }
+        const rms = Math.sqrt(sum / bytes.length);
+        const db = 20 * Math.log10(Math.max(rms, 1e-5));
+        return Math.pow(clamp01((db + 58) / 58), 1.15);
+      }
+
+      function tick() {
+        const now = performance.now();
+        if (state === 'recording') {
+          activeMs += now - tickAt;
+          carry = Math.max(carry, level());
+          sample++;
+          if (sample % 2 === 0) { raw.push(carry); live.push(carry); carry = 0; }
+          if (activeMs >= MAX_MS && !limitHit) { limitHit = true; cb.onLimit(); api.stop(); }
+        }
+        tickAt = now;
+        cb.onTick(activeMs);
+      }
+
+      function cleanup() {
+        clearInterval(timer); timer = 0;
+        clearTimeout(stopFallback);
+        if (stream) stream.getTracks().forEach((t) => t.stop());
+        if (ctx && ctx.state !== 'closed') ctx.close().catch(() => {});
+        if (releaseLock) { releaseLock(); releaseLock = null; }
+        stream = null; ctx = null; analyser = null; mr = null;
+      }
+
+      function fail(code) {
+        cleanup();
+        live.stop();
+        setState('idle');
+        cb.onError(code);
+      }
+
+      function finalize() {
+        if (state !== 'saving') return; // onstop and the fallback timer can both land here
+        const blob = new Blob(chunks, { type: mime });
+        const result = { blob, mime, durationMs: Math.round(activeMs), peaks: summarizePeaks(raw, 80), draftId, startedAt };
+        const wasDiscard = discarding;
+        cleanup();
+        chunks = []; raw = []; discarding = false;
+        setState('idle');
+        if (wasDiscard) cb.onDiscard(result); else cb.onComplete(result);
+      }
+
+      const api = {
+        get state() { return state; },
+
+        async start() {
+          if (state !== 'idle') return;
+          setState('requesting');
+          try {
+            try {
+              stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 1, sampleRate: 48000 } });
+            } catch (e) {
+              if (e && e.name === 'OverconstrainedError') stream = await navigator.mediaDevices.getUserMedia({ audio: true }); else throw e;
+            }
+          } catch (e) { setState('idle'); cb.onError(mapMicError(e)); return; }
+
+          mime = pickMime();
+          try { mr = new MediaRecorder(stream, { ...(mime ? { mimeType: mime } : {}), audioBitsPerSecond: 128000 }); } catch (_) {
+            try { mr = new MediaRecorder(stream); } catch (__) { fail('recorder'); return; }
+          }
+          mime = mr.mimeType || mime || 'audio/webm';
+
+          chunks = []; raw = []; seq = 0; sample = 0; carry = 0; activeMs = 0; discarding = false; limitHit = false;
+          draftId = uid(); startedAt = Date.now();
+
+          // While this recording is alive, other tabs must not "recover" its draft.
+          if (navigator.locks) navigator.locks.request(LOCK_PREFIX + draftId, () => new Promise((res) => { releaseLock = res; })).catch(() => {});
+
+          mr.ondataavailable = (e) => {
+            if (!e.data || !e.data.size) return;
+            chunks.push(e.data);
+            const n = seq++;
+            store.putChunk(draftId, n, e.data);
+            if (n % DRAFT_EVERY_CHUNKS === 0) store.putDraft({ id: draftId, mime, startedAt, durationMs: Math.round(activeMs), peaks: summarizePeaks(raw, 80), updatedAt: Date.now() });
+          };
+          mr.onstop = finalize;
+          mr.onerror = () => { if (state === 'recording' || state === 'paused') fail('recorder'); };
+
+          const track = stream.getAudioTracks()[0];
+          if (track) track.addEventListener('ended', () => { if (state === 'recording' || state === 'paused') { cb.onUnplugged(); api.stop(); } });
+
+          try {
+            const AC = window.AudioContext || window.webkitAudioContext;
+            ctx = new AC();
+            if (ctx.state === 'suspended') await ctx.resume();
+            const src = ctx.createMediaStreamSource(stream);
+            analyser = ctx.createAnalyser();
+            analyser.fftSize = 1024;
+            analyser.smoothingTimeConstant = 0;
+            src.connect(analyser); // not connected to the speakers, so no feedback
+            bytes = new Uint8Array(analyser.fftSize);
+          } catch (_) { analyser = null; } // recording still works without a live meter
+
+          try { mr.start(1000); } catch (_) { fail('recorder'); return; }
+          tickAt = performance.now();
+          setState('recording');
+          live.start();
+          timer = setInterval(tick, 50);
+        },
+
+        pause() {
+          if (state !== 'recording') return;
+          try { mr.pause(); } catch (_) { return; }
+          tick();
+          setState('paused');
+          live.pause();
+        },
+
+        resume() {
+          if (state !== 'paused') return;
+          try { mr.resume(); } catch (_) { return; }
+          tickAt = performance.now();
+          setState('recording');
+          live.resume();
+        },
+
+        stop(discard = false) {
+          if (state !== 'recording' && state !== 'paused') return;
+          tick();
+          discarding = discard;
+          setState('saving');
+          clearInterval(timer); timer = 0;
+          live.stop();
+          try { mr.stop(); } catch (_) { finalize(); return; }
+          stopFallback = setTimeout(finalize, 3000); // if onstop never fires, save what we have
+        },
+
+        discard() { api.stop(true); },
+      };
+      return api;
+    }
+
+    /* ------------------------------------------------------------------ *
+     * Recorder UI
+     * ------------------------------------------------------------------ */
+    const el = {
+      recorder: $('#recorder'), rec: $('#rec'), pause: $('#pause'), discard: $('#discard'),
+      status: $('#status'), clock: $('#clock'), limit: $('#limit'), notice: $('#notice'),
+    };
+
+    const NOTICES = {
+      unsupported: { title: "This browser can't record audio", body: 'Recording needs a current Chrome, Edge, Firefox or Safari.', retry: false },
+      insecure: { title: 'Needs a secure connection', body: 'Microphone access only works on HTTPS or localhost.', retry: false },
+      permission: { title: 'Microphone is blocked', body: "Allow microphone access for this site in your browser's site settings, then try again.", retry: true },
+      'no-mic': { title: 'No microphone found', body: 'Connect a microphone or check your system sound settings, then try again.', retry: true },
+      busy: { title: "Can't use the microphone", body: 'Another app or tab may be using it. Close it and try again.', retry: true },
+      recorder: { title: 'Recording stopped', body: 'Your browser could not keep recording. Try again.', retry: true },
+      unknown: { title: 'Something went wrong', body: 'The recording could not start. Try again.', retry: true },
+    };
+
+    function showNotice(code) {
+      const n = NOTICES[code] || NOTICES.unknown;
+      el.notice.className = 'mt-4 flex items-start gap-3 rounded-2xl bg-danger-surface p-3.5';
+      el.notice.replaceChildren(
+        h('i', { 'data-lucide': 'circle-alert', class: 'mt-0.5 size-5 shrink-0', 'aria-hidden': 'true' }),
+        h('div', { class: 'min-w-0 flex-1' },
+          h('p', { class: 'font-semibold tracking-[-0.01em]' }, n.title),
+          h('p', { class: 'mt-0.5 text-[15px] leading-snug text-ink/75' }, n.body),
+          n.retry ? h('button', { type: 'button', class: 'mt-3 h-9 rounded-full bg-white px-4 text-sm font-semibold transition-transform duration-200 hover:bg-white/70 active:scale-[0.96]', onclick: () => { el.clock.textContent = '0:00'; recorder.start(); } }, 'Try again') : null));
+      el.notice.hidden = false;
+      icons();
+      hide(el.notice);
+      tween(el.notice, { opacity: [0, 1], y: [-6, 0], duration: 240, ease: EASE.out }).then(() => clearStyles(el.notice));
+    }
+    const hideNotice = () => { el.notice.hidden = true; };
+
+    const STATUS = { idle: 'Ready', requesting: 'Waiting for the microphone', recording: 'Recording', paused: 'Paused', saving: 'Saving' };
+    const baseTitle = document.title;
+    let wakeLock = null;
+    let lastSecond = -1;
+
+    async function acquireWakeLock() {
+      if (!('wakeLock' in navigator) || wakeLock) return;
+      try {
+        const lock = await navigator.wakeLock.request('screen');
+        lock.addEventListener('release', () => { if (wakeLock === lock) wakeLock = null; });
+        wakeLock = lock;
+      } catch (_) { /* optional: denied on low battery or unsupported */ }
+    }
+    function releaseWakeLock() { const l = wakeLock; wakeLock = null; try { if (l) l.release(); } catch (_) { /* noop */ } }
+    document.addEventListener('visibilitychange', () => { if (!document.hidden && recorder.state === 'recording') acquireWakeLock(); });
+
+    function onRecorderState(s) {
+      el.recorder.dataset.phase = s;
+      const on = s === 'recording' || s === 'paused' || s === 'saving';
+      el.rec.dataset.state = on ? 'on' : 'off';
+      el.rec.setAttribute('aria-label', on ? 'Stop and save recording' : 'Start recording');
+      el.rec.disabled = s === 'requesting' || s === 'saving';
+      const open = s === 'recording' || s === 'paused';
+      el.pause.disabled = !open;
+      el.discard.disabled = !open;
+      el.pause.dataset.state = s === 'paused' ? 'on' : 'off';
+      el.pause.setAttribute('aria-label', s === 'paused' ? 'Resume recording' : 'Pause recording');
+      el.status.textContent = STATUS[s];
+      el.limit.hidden = s !== 'idle';
+      if (s === 'recording') acquireWakeLock();
+      if (s === 'idle') { releaseWakeLock(); document.title = baseTitle; lastSecond = -1; }
+      if (s === 'requesting') hideNotice();
+    }
+
+    function onTick(ms) {
+      const sec = Math.floor(ms / 1000);
+      if (sec === lastSecond) return;
+      lastSecond = sec;
+      el.clock.textContent = fmtClock(ms);
+      if (recorder.state === 'recording') document.title = `Recording ${fmtClock(ms)}, vonote`;
+    }
+
+    const recorder = createRecorder({
+      onState: onRecorderState,
+      onTick,
+      onError: (code) => showNotice(code),
+      onLimit: () => toasts.show('One hour reached. Saving your note.', { duration: 4000 }),
+      onUnplugged: () => toasts.show('Microphone disconnected. Saving what you recorded.', { duration: 4000 }),
+      onComplete: (r) => saveRecording(r),
+      onDiscard: (r) => {
+        store.clearDraft(r.draftId);
+        el.clock.textContent = '0:00';
+        if (r.durationMs < 1500) return;
+        toasts.show('Recording discarded', { action: 'Undo', onAction: () => saveRecording(r) });
+      },
+    });
+
+    el.rec.addEventListener('click', () => {
+      if (recorder.state === 'idle') { el.clock.textContent = '0:00'; recorder.start(); } else recorder.stop();
+    });
+    el.pause.addEventListener('click', () => { if (recorder.state === 'recording') recorder.pause(); else recorder.resume(); });
+    el.discard.addEventListener('click', () => recorder.discard());
+
+    window.addEventListener('beforeunload', (e) => {
+      if (recorder.state === 'recording' || recorder.state === 'paused') { e.preventDefault(); e.returnValue = ''; }
+    });
+
+    /* ------------------------------------------------------------------ *
+     * Notes: model + save pipeline
+     * ------------------------------------------------------------------ */
+    let notes = [];
+    let persistAsked = false;
+
+    function extFor(mime) {
+      if (/mp4/.test(mime)) return 'm4a';
+      if (/ogg/.test(mime)) return 'ogg';
+      if (/mpeg/.test(mime)) return 'mp3';
+      return 'webm';
+    }
+    function fileNameFor(note) {
+      const slug = note.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'voice-note';
+      return `${slug}.${extFor(note.mime)}`;
+    }
+    function downloadBlob(name, blob) {
+      const url = URL.createObjectURL(blob);
+      const a = h('a', { href: url, download: name });
+      document.body.append(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1500);
+    }
+
+    async function nextTitle() {
+      const n = ((await store.getSetting('counter')) || 0) + 1;
+      store.setSetting('counter', n);
+      return `Voice note ${n}`;
+    }
+
+    async function saveRecording(r) {
+      if (!r.blob || r.blob.size < 200) { toasts.show('Nothing was recorded'); store.clearDraft(r.draftId); return; }
+      const note = {
+        id: uid(), title: await nextTitle(), createdAt: r.startedAt, durationMs: r.durationMs,
+        mime: r.mime, size: r.blob.size, peaks: r.peaks,
+      };
+      try {
+        await store.saveNote(note, r.blob);
+      } catch (e) {
+        toasts.show("Couldn't save. Storage may be full.", { action: 'Download', duration: 10000, onAction: () => downloadBlob(fileNameFor(note), r.blob) });
+        return;
+      }
+      store.clearDraft(r.draftId);
+      notes.unshift(note);
+      notes.sort((a, b) => b.createdAt - a.createdAt);
+      insertRow(note, true);
+      renderMeta();
+      el.clock.textContent = '0:00';
+      toasts.show('Saved to your notes', { action: 'Play', onAction: () => { scrollToNote(note.id); player.toggle(note.id); } });
+      if (!persistAsked && navigator.storage && navigator.storage.persist) { persistAsked = true; navigator.storage.persist().catch(() => {}); }
+    }
+
+    /** True when another tab is still recording into this draft. */
+    async function draftIsLive(d) {
+      if (navigator.locks) {
+        try { return !(await navigator.locks.request(LOCK_PREFIX + d.id, { ifAvailable: true }, (lock) => !!lock)); } catch (_) { /* fall through */ }
+      }
+      return Date.now() - (d.updatedAt || 0) < 20000;
+    }
+
+    /** Anything left over from a crash or closed tab becomes a normal note. */
+    async function recoverDrafts() {
+      const drafts = await store.listDrafts();
+      let recovered = 0;
+      for (const d of drafts) {
+        if (await draftIsLive(d)) continue;
+        const parts = await store.readChunks(d.id);
+        const blob = new Blob(parts, { type: d.mime });
+        if (blob.size < 2000) { await store.clearDraft(d.id); continue; }
+        const note = { id: uid(), title: 'Recovered note', createdAt: d.startedAt, durationMs: d.durationMs || parts.length * 1000, mime: d.mime, size: blob.size, peaks: d.peaks || summarizePeaks([], 80) };
+        try { await store.saveNote(note, blob); await store.clearDraft(d.id); notes.push(note); recovered++; } catch (_) { /* keep the draft for next time */ }
+      }
+      if (recovered) {
+        notes.sort((a, b) => b.createdAt - a.createdAt);
+        toasts.show(recovered === 1 ? 'Recovered a recording from last time' : `Recovered ${recovered} recordings from last time`, { duration: 5000 });
+      }
+    }
+
+    /* ------------------------------------------------------------------ *
+     * Playback: one shared <audio> element, so only one note plays at a time
+     * ------------------------------------------------------------------ */
+    const RATES = [1, 1.25, 1.5, 2];
+    const rows = new Map(); // note id -> row state
+    const canvasToRow = new Map();
+    const SILENT_WAV = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
+
+    const player = (() => {
+      const audio = new Audio();
+      audio.preload = 'metadata';
+      let id = null;
+      let url = null;
+      let raf = 0;
+      let rate = 1;
+      let token = 0;
+      let loading = false;
+      let unlocked = false;
+
+      // Safari only lets a media element play after it has been started from a tap, and our play()
+      // happens after an async storage read. Starting the element silently on the first tap unlocks it.
+      document.addEventListener('pointerdown', () => {
+        if (unlocked || id) return;
+        unlocked = true;
+        audio.src = SILENT_WAV;
+        audio.play().then(() => { audio.pause(); audio.removeAttribute('src'); audio.load(); }).catch(() => { audio.removeAttribute('src'); });
+      }, { once: true, capture: true });
+
+      const dur = (noteId) => { const n = notes.find((x) => x.id === noteId); return n ? Math.max(0.001, n.durationMs / 1000) : 0.001; };
+
+      function frame() {
+        if (id) ui.progress(id, audio.currentTime / dur(id));
+        raf = audio.paused ? 0 : requestAnimationFrame(frame);
+      }
+
+      function unload() {
+        cancelAnimationFrame(raf); raf = 0;
+        audio.pause();
+        const old = id;
+        id = null; token++;
+        if (old) { ui.playing(old, false); ui.progress(old, 0); }
+        audio.removeAttribute('src');
+        audio.load();
+        if (url) URL.revokeObjectURL(url);
+        url = null;
+      }
+
+      /** Chrome's MediaRecorder WebM has no duration or seek index until the browser scans to the end once. */
+      async function settleDuration() {
+        if (Number.isFinite(audio.duration)) return;
+        await new Promise((resolve) => {
+          const done = () => { audio.removeEventListener('timeupdate', done); resolve(); };
+          audio.addEventListener('timeupdate', done);
+          setTimeout(done, 1500);
+          audio.currentTime = 1e101;
+        });
+        audio.currentTime = 0;
+      }
+
+      async function load(noteId) {
+        if (id === noteId && url) return true;
+        unload();
+        const mine = ++token;
+        const blob = await store.getAudio(noteId);
+        if (mine !== token) return false;
+        if (!blob) { toasts.show('This recording is missing from storage'); return false; }
+        url = URL.createObjectURL(blob);
+        id = noteId;
+        loading = true;
+        audio.src = url;
+        audio.defaultPlaybackRate = rate;
+        audio.playbackRate = rate;
+        const ok = await new Promise((resolve) => {
+          audio.onloadedmetadata = () => resolve(true);
+          audio.onerror = () => resolve(false);
+        });
+        audio.onloadedmetadata = null;
+        audio.onerror = null;
+        loading = false;
+        if (mine !== token) return false;
+        if (!ok) { toasts.show("This recording can't be played"); unload(); return false; }
+        await settleDuration();
+        return mine === token;
+      }
+
+      async function play(noteId) {
+        if (!(await load(noteId))) return;
+        try { await audio.play(); } catch (e) { if (e && e.name !== 'AbortError') toasts.show("Couldn't start playback"); }
+      }
+
+      async function seek(noteId, frac, { autoplay = false } = {}) {
+        if (!(await load(noteId))) return;
+        audio.currentTime = clamp01(frac) * dur(noteId);
+        ui.progress(noteId, clamp01(frac));
+        if (autoplay && audio.paused) { try { await audio.play(); } catch (_) { /* needs a gesture */ } }
+      }
+
+      audio.addEventListener('play', () => {
+        if (!id) return;
+        ui.playing(id, true);
+        cancelAnimationFrame(raf); raf = requestAnimationFrame(frame);
+        if ('mediaSession' in navigator && window.MediaMetadata) {
+          const n = notes.find((x) => x.id === id);
+          navigator.mediaSession.metadata = new MediaMetadata({ title: n ? n.title : 'Voice note', artist: 'vonote' });
+        }
+      });
+      audio.addEventListener('pause', () => { if (id) { ui.playing(id, false); ui.progress(id, audio.currentTime / dur(id)); } });
+      audio.addEventListener('ended', () => { if (id) { audio.currentTime = 0; ui.playing(id, false); ui.progress(id, 0); } });
+      audio.addEventListener('error', () => { if (id && !loading && audio.error) toasts.show("This recording can't be played"); });
+
+      if ('mediaSession' in navigator) {
+        const set = (a, f) => { try { navigator.mediaSession.setActionHandler(a, f); } catch (_) { /* unsupported action */ } };
+        set('play', () => { if (id) audio.play(); });
+        set('pause', () => audio.pause());
+        set('seekbackward', () => { audio.currentTime = Math.max(0, audio.currentTime - 10); });
+        set('seekforward', () => { if (id) audio.currentTime = Math.min(dur(id), audio.currentTime + 10); });
+      }
+
+      return {
+        get id() { return id; },
+        get rate() { return rate; },
+        get playing() { return !audio.paused; },
+        setRate(r) { rate = r; audio.defaultPlaybackRate = r; audio.playbackRate = r; },
+        toggle(noteId) { if (id === noteId && !audio.paused) audio.pause(); else play(noteId); },
+        seek,
+        seekBy(noteId, deltaSec) {
+          if (id !== noteId) return seek(noteId, Math.max(0, deltaSec) / dur(noteId));
+          audio.currentTime = Math.min(dur(noteId), Math.max(0, audio.currentTime + deltaSec));
+          ui.progress(noteId, audio.currentTime / dur(noteId));
+          return undefined;
+        },
+        forget(noteId) { if (id === noteId) unload(); },
+      };
+    })();
+
+    /* Row-level UI updates driven by the player */
+    const ui = {
+      playing(noteId, on) {
+        const r = rows.get(noteId);
+        if (!r) return;
+        r.li.dataset.playing = String(on);
+        r.play.dataset.state = on ? 'on' : 'off';
+        r.play.setAttribute('aria-label', `${on ? 'Pause' : 'Play'} ${r.note.title}`);
+      },
+      progress(noteId, frac) {
+        const r = rows.get(noteId);
+        if (!r || r.scrubbing) return;
+        setProgress(r, clamp01(frac));
+      },
+    };
+
+    function setProgress(r, frac) {
+      r.frac = frac;
+      const total = r.note.durationMs;
+      r.time.textContent = `${fmtClock(frac * total)} / ${fmtClock(total)}`;
+      r.wave.setAttribute('aria-valuenow', String(Math.round((frac * total) / 1000)));
+      r.wave.setAttribute('aria-valuetext', `${fmtClock(frac * total)} of ${fmtClock(total)}`);
+      if (r.dims) drawPeaks(r.dims, r.note.peaks, frac);
+    }
+
+    const waveObserver = new ResizeObserver((entries) => {
+      for (const e of entries) {
+        const r = canvasToRow.get(e.target);
+        if (!r || !e.contentRect.width) continue;
+        r.dims = sizeCanvas(r.wave);
+        drawPeaks(r.dims, r.note.peaks, r.frac);
+      }
+    });
+
+    /* ------------------------------------------------------------------ *
+     * Notes list UI
+     * ------------------------------------------------------------------ */
+    const listEl = $('#notes-list');
+    const emptyEl = $('#notes-empty');
+    const metaEl = $('#notes-meta');
+    const canShareFiles = (() => {
+      try { return !!(navigator.canShare && navigator.canShare({ files: [new File([''], 'a.m4a', { type: 'audio/mp4' })] })); } catch (_) { return false; }
+    })();
+
+    function renderMeta() {
+      const total = notes.reduce((s, n) => s + (n.size || 0), 0);
+      metaEl.textContent = notes.length ? `${plural(notes.length, 'note')}, ${fmtBytes(total)}` : '';
+      emptyEl.hidden = notes.length > 0;
+      listEl.hidden = notes.length === 0;
+    }
+
+    function iconBtn(icon, label, onClick, extra = '') {
+      const b = h('button', {
+        type: 'button', 'aria-label': label, title: label,
+        class: `grid size-10 place-items-center rounded-full transition-[background-color,transform] duration-200 ease-out-strong hover:bg-surface-hover active:scale-[0.94] ${extra}`,
+      }, h('i', { 'data-lucide': icon, class: 'size-[18px]', 'aria-hidden': 'true' }));
+      b.addEventListener('click', () => onClick(b));
+      return b;
+    }
+
+    function rowFor(note) {
+      const r = { note, frac: 0, scrubbing: false, dims: null };
+
+      r.play = h('button', {
+        type: 'button', 'data-state': 'off', 'aria-label': `Play ${note.title}`,
+        class: 'inline-grid size-12 shrink-0 place-items-center rounded-full bg-ink text-white transition-[transform,background-color] duration-200 ease-out-strong hover:bg-black active:scale-[0.94]',
+        onclick: () => player.toggle(note.id),
+      },
+      h('i', { 'data-lucide': 'play', class: 'face face-off size-[18px] fill-current [grid-area:1/1]', 'aria-hidden': 'true' }),
+      h('i', { 'data-lucide': 'pause', class: 'face face-on size-[18px] fill-current [grid-area:1/1]', 'aria-hidden': 'true' }));
+
+      r.title = h('button', {
+        type: 'button', title: 'Rename', 'aria-label': `Rename ${note.title}`,
+        class: 'block w-full truncate rounded-lg text-left text-[17px] font-semibold tracking-[-0.015em]',
+        onclick: () => startRename(r),
+      }, note.title);
+
+      r.time = h('span', { class: 'text-sm tabular-nums text-muted' }, `0:00 / ${fmtClock(note.durationMs)}`);
+
+      r.wave = h('canvas', {
+        class: 'block h-12 w-full cursor-pointer', style: 'touch-action:pan-y', role: 'slider', tabindex: '0',
+        'aria-label': `Seek ${note.title}`, 'aria-valuemin': '0', 'aria-valuemax': String(Math.round(note.durationMs / 1000)), 'aria-valuenow': '0', 'aria-valuetext': `0:00 of ${fmtClock(note.durationMs)}`,
+      });
+      bindScrub(r);
+
+      r.speed = h('button', {
+        type: 'button', 'aria-label': 'Playback speed', title: 'Playback speed',
+        class: 'h-10 min-w-[3.25rem] rounded-full px-3 text-sm font-semibold tabular-nums transition-[background-color,transform] duration-200 ease-out-strong hover:bg-surface-hover active:scale-[0.94]',
+        onclick: () => {
+          const next = RATES[(RATES.indexOf(player.rate) + 1) % RATES.length];
+          player.setRate(next);
+          for (const x of rows.values()) x.speed.textContent = `${next}x`;
+        },
+      }, `${player.rate}x`);
+
+      const actions = h('div', { class: 'flex items-center gap-0.5' },
+        r.speed,
+        canShareFiles ? iconBtn('share-2', 'Share', async () => {
+          const blob = await store.getAudio(note.id);
+          if (!blob) return;
+          try { await navigator.share({ files: [new File([blob], fileNameFor(note), { type: note.mime })], title: note.title }); } catch (e) { if (e && e.name !== 'AbortError') toasts.show("Couldn't share this note"); }
+        }) : null,
+        iconBtn('download', 'Download', async () => {
+          const blob = await store.getAudio(note.id);
+          if (blob) downloadBlob(fileNameFor(note), blob); else toasts.show('This recording is missing from storage');
+        }),
+        iconBtn('trash-2', 'Delete', () => removeNote(r), 'hover:bg-danger-surface'));
+
+      r.meta = h('p', { class: 'mt-0.5 text-[13px] text-muted' }, formatWhen(note.createdAt));
+
+      r.li = h('li', { class: 'note overflow-hidden rounded-[28px] border border-line-soft bg-white p-3 sm:p-4', 'data-id': note.id, 'data-playing': 'false' },
+        h('div', { class: 'flex items-center gap-3' },
+          r.play,
+          h('div', { class: 'min-w-0 flex-1' }, r.title, r.meta),
+          h('span', { class: 'shrink-0 pr-1 text-sm font-medium tabular-nums text-muted' }, fmtClock(note.durationMs))),
+        h('div', { class: 'mt-3' }, r.wave),
+        h('div', { class: 'mt-1 flex items-center justify-between gap-2' }, r.time, actions));
+
+      rows.set(note.id, r);
+      canvasToRow.set(r.wave, r);
+      return r;
+    }
+
+    function bindScrub(r) {
+      const cv = r.wave;
+      let dragging = false;
+      const fracOf = (e) => { const b = cv.getBoundingClientRect(); return clamp01((e.clientX - b.left) / b.width); };
+      cv.addEventListener('pointerdown', (e) => {
+        if (e.button !== 0) return;
+        dragging = true; r.scrubbing = true;
+        cv.setPointerCapture(e.pointerId);
+        setProgress(r, fracOf(e));
+      });
+      cv.addEventListener('pointermove', (e) => { if (dragging) setProgress(r, fracOf(e)); });
+      cv.addEventListener('pointerup', (e) => {
+        if (!dragging) return;
+        dragging = false; r.scrubbing = false;
+        const active = player.id === r.note.id;
+        // Tapping a waveform of a note that is not loaded starts it from that point.
+        player.seek(r.note.id, fracOf(e), { autoplay: !active || player.playing });
+      });
+      cv.addEventListener('pointercancel', () => { dragging = false; r.scrubbing = false; ui.progress(r.note.id, r.frac); });
+      cv.addEventListener('keydown', (e) => {
+        const k = e.key;
+        if (k === 'ArrowRight') { e.preventDefault(); player.seekBy(r.note.id, 5); }
+        else if (k === 'ArrowLeft') { e.preventDefault(); player.seekBy(r.note.id, -5); }
+        else if (k === 'Home') { e.preventDefault(); player.seek(r.note.id, 0); }
+        else if (k === 'End') { e.preventDefault(); player.seek(r.note.id, 1); }
+        else if (k === ' ' || k === 'Enter') { e.preventDefault(); player.toggle(r.note.id); }
+      });
+    }
+
+    function startRename(r) {
+      const input = h('input', {
+        type: 'text', value: r.note.title, maxlength: '80', 'aria-label': 'Note title', autocomplete: 'off', enterkeyhint: 'done',
+        class: 'h-10 w-full rounded-full bg-surface px-4 text-[16px] font-semibold outline-none transition-shadow duration-200 focus:shadow-[0_0_0_2px_#1063e9]',
+      });
+      let done = false;
+      const finish = async (commit) => {
+        if (done) return;
+        done = true;
+        const v = input.value.trim().slice(0, 80);
+        if (commit && v && v !== r.note.title) {
+          r.note.title = v;
+          await store.updateNote(r.note);
+          r.title.setAttribute('aria-label', `Rename ${v}`);
+          r.play.setAttribute('aria-label', `${r.play.dataset.state === 'on' ? 'Pause' : 'Play'} ${v}`);
+          r.wave.setAttribute('aria-label', `Seek ${v}`);
+        }
+        r.title.textContent = r.note.title;
+        input.replaceWith(r.title);
+        r.title.focus({ preventScroll: true });
+      };
+      input.addEventListener('blur', () => finish(true));
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+        if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+      });
+      r.title.replaceWith(input);
+      input.focus();
+      input.select();
+    }
+
+    function insertRow(note, animate) {
+      const idx = notes.findIndex((n) => n.id === note.id);
+      const r = rowFor(note);
+      listEl.insertBefore(r.li, listEl.children[idx] || null);
+      emptyEl.hidden = true; listEl.hidden = false;
+      icons();
+      waveObserver.observe(r.wave);
+      if (!animate || !canAnimate || reduceMQ.matches) return;
+      const full = r.li.offsetHeight;
+      hide(r.li);
+      tween(r.li, { height: ['0px', `${full}px`], marginTop: ['-12px', '0px'], opacity: [0, 1], duration: 460, ease: EASE.out }).then(() => clearStyles(r.li));
+    }
+
+    async function removeNote(r) {
+      const note = r.note;
+      const blob = await store.getAudio(note.id); // keep it in memory so Undo can bring it back
+      player.forget(note.id);
+      const height = r.li.offsetHeight;
+      await tween(r.li, { height: [`${height}px`, '0px'], opacity: [1, 0], marginBottom: ['0px', '-12px'], duration: 280, ease: EASE.out });
+      await store.deleteNote(note.id);
+      waveObserver.unobserve(r.wave);
+      canvasToRow.delete(r.wave);
+      rows.delete(note.id);
+      r.li.remove();
+      notes = notes.filter((n) => n.id !== note.id);
+      renderMeta();
+      toasts.show('Note deleted', {
+        action: blob ? 'Undo' : null,
+        onAction: async () => {
+          await store.saveNote(note, blob);
+          notes.push(note);
+          notes.sort((a, b) => b.createdAt - a.createdAt);
+          insertRow(note, true);
+          renderMeta();
+        },
+      });
+    }
+
+    function scrollToNote(noteId) {
+      const r = rows.get(noteId);
+      if (r) r.li.scrollIntoView({ behavior: reduceMQ.matches ? 'auto' : 'smooth', block: 'center' });
+    }
+
+    /* ------------------------------------------------------------------ *
+     * Nav: sliding indicator + scroll spy
+     * ------------------------------------------------------------------ */
+    const tabs = { record: $('#tab-record'), notes: $('#tab-notes') };
+    const indicator = $('#tab-ind');
+    let currentTab = 'record';
+
+    function moveIndicator(animate = true) {
+      const t = tabs[currentTab];
+      indicator.classList.toggle('no-anim', !animate);
+      indicator.style.width = `${t.offsetWidth}px`;
+      indicator.style.transform = `translateX(${t.offsetLeft}px)`;
+      if (!animate) { void indicator.offsetWidth; indicator.classList.remove('no-anim'); }
+    }
+
+    function setTab(name) {
+      if (name === currentTab) return;
+      currentTab = name;
+      for (const [k, t] of Object.entries(tabs)) {
+        const on = k === name;
+        if (on) t.setAttribute('aria-current', 'location'); else t.removeAttribute('aria-current');
+        t.classList.toggle('text-white', on);
+        t.classList.toggle('text-ink', !on);
+      }
+      moveIndicator(true);
+    }
+
+    function setupScrollSpy() {
+      const secRecord = $('#record');
+      const secNotes = $('#notes');
+      const io = new IntersectionObserver((entries) => {
+        for (const e of entries) if (e.isIntersecting) setTab(e.target === secNotes ? 'notes' : 'record');
+      }, { rootMargin: '-45% 0px -50% 0px' });
+      io.observe(secRecord); io.observe(secNotes);
+      window.addEventListener('scroll', () => {
+        if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4) setTab('notes');
+      }, { passive: true });
+    }
+
+    for (const [name, t] of Object.entries(tabs)) {
+      t.addEventListener('click', (e) => {
+        e.preventDefault();
+        setTab(name);
+        $(name === 'notes' ? '#notes' : '#record').scrollIntoView({ behavior: reduceMQ.matches ? 'auto' : 'smooth', block: 'start' });
+      });
+    }
+    window.addEventListener('resize', () => moveIndicator(false));
+
+    /* ------------------------------------------------------------------ *
+     * Boot
+     * ------------------------------------------------------------------ */
+    function intro() {
+      const t = { nav: $('#nav'), lines: $$('.line-in'), sub: $('#hero-sub'), card: el.recorder, note: $('#privacy') };
+      hide(t.nav);
+      t.lines.forEach((l) => { l.style.transform = 'translateY(105%)'; });
+      [t.sub, t.card, t.note].forEach(hide);
+      t.card.style.transform = 'translateY(28px) scale(0.985)';
+      document.documentElement.classList.remove('pre');
+
+      tween(t.nav, { opacity: [0, 1], y: [-8, 0], duration: 500, ease: EASE.out }).then(() => clearStyles(t.nav));
+      tween(t.lines, { y: ['105%', '0%'], duration: 800, delay: A.stagger(90), ease: EASE.out }).then(() => clearStyles(t.lines));
+      tween(t.sub, { opacity: [0, 1], y: [12, 0], duration: 600, delay: 260, ease: EASE.out }).then(() => clearStyles(t.sub));
+      tween(t.card, { opacity: [0, 1], y: [28, 0], scale: [0.985, 1], duration: 760, delay: 340, ease: EASE.out }).then(() => clearStyles(t.card));
+      tween(t.note, { opacity: [0, 1], duration: 500, delay: 760, ease: 'outQuad' }).then(() => clearStyles(t.note));
+      live.playIntro(620);
+    }
+
+    async function boot() {
+      icons();
+      store.onDegrade = () => toasts.show("Storage is blocked here. Notes won't survive closing this tab.", { duration: 5000 });
+
+      const supportError = !window.isSecureContext ? 'insecure'
+        : (!window.MediaRecorder || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) ? 'unsupported' : null;
+      if (supportError) { el.rec.disabled = true; showNotice(supportError); }
+
+      notes = await store.listNotes();
+      await recoverDrafts();
+      const built = notes.map((n) => rowFor(n));
+      listEl.replaceChildren(...built.map((r) => r.li));
+      icons();
+      built.forEach((r) => waveObserver.observe(r.wave));
+      renderMeta();
+
+      await new Promise((r) => (document.readyState === 'complete' ? r() : window.addEventListener('load', r, { once: true })));
+      await Promise.race([document.fonts ? document.fonts.ready : null, new Promise((r) => setTimeout(r, 1200))]);
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      moveIndicator(false);
+      setupScrollSpy();
+      if (canAnimate && !reduceMQ.matches) intro(); else { document.documentElement.classList.remove('pre'); live.playIntro(0); }
+    }
+
+    // Safety net: never leave the page hidden if something above throws.
+    setTimeout(() => document.documentElement.classList.remove('pre'), 3000);
+    boot().catch((err) => { console.error('[vonote] boot failed', err); document.documentElement.classList.remove('pre'); });
+  })();
+  </script>
+</body>
+</html>
+
